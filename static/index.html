@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <link rel="stylesheet"
+      href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+  </head>
+  <body>
+    <div id="app">
+      <el-container>
+        <el-aside width="300px" style="margin-top: 5%">
+          <el-card>
+            <div slot="header" class="clearfix"><span>查询结果</span></div>
+            <div class="item"> 命中人数：
+              <span v-for="item in infoForm.rows">{{item.count}}</span>
+            </div>
+            <div class="item"> 总用户数：{{ infoForm.numUsers}} </div>
+            <div class="item"> 执行时间：{{ infoForm.seconds }} </div>
+          </el-card>
+          <el-card>
+            <div slot="header" class="clearfix"><span>查询语句</span></div>
+            <div style="overflow:auto">
+              <pre>{{ query }}</pre>
+            </div>
+          </el-card>
+        </el-aside>
+        <el-container>
+          <el-header></el-header>
+          <el-main style="margin-top: 5%">
+            <el-form ref="form" :model="queryForm" label-width="120px" inline
+              size="mini">
+              <el-form-item
+                v-for="(field, key) in fields"
+                :label="field.label">
+                <el-select v-model="queryForm.fields[key]">
+                  <el-option label="所有" value=""></el-option>
+                  <el-option
+                    v-for="(value, label) in field.options"
+                    :label="label"
+                    :key="value"
+                    :value="value"></el-option>
+                </el-select>
+              </el-form-item>
+            </el-form>
+            <el-divider></el-divider>
+            <el-form ref="form" :model="queryForm" label-width="120px"
+              size="mini">
+              <el-form-item label="前日操作">
+                <el-select v-model="queryForm.before_action" multiple
+                  placeholder="请选择当日操作">
+                  <el-option
+                    v-for="(value, label) in actions"
+                    :label="label"
+                    :key="value"
+                    :value="value"></el-option>
+                </el-select>
+                <el-date-picker
+                  v-if="queryForm.before_action.length> 0"
+                  v-model="queryForm.before_date"
+                  type="daterange"
+                  align="right"
+                  unlink-panels
+                  value-format="yyyy-MM-ddT00:00"
+                  range-separator="至"
+                  start-placeholder="开始日期"
+                  end-placeholder="结束日期"
+                  :picker-options="pickerOptions">
+                </el-date-picker>
+              </el-form-item>
+              <!-- <el-form-item label="计算方式">
+                <el-select v-model="queryForm.op">
+                  <el-option
+                    v-for="(value, label) in ops"
+                    :label="label"
+                    :key="value"
+                    :value="value"></el-option>
+                </el-select>
+              </el-form-item> -->
+              <el-form-item label="昨日操作">
+                <el-select v-model="queryForm.after_action" multiple
+                  placeholder="请选择当日操作">
+                  <el-option
+                    v-for="(value, label) in actions"
+                    :label="label"
+                    :key="value"
+                    :value="value"></el-option>
+                </el-select>
+                <el-date-picker
+                  v-if="queryForm.after_action.length> 0"
+                  v-model="queryForm.after_date"
+                  type="daterange"
+                  align="right"
+                  unlink-panels
+                  value-format="yyyy-MM-ddT00:00"
+                  range-separator="至"
+                  start-placeholder="开始日期"
+                  end-placeholder="结束日期"
+                  :picker-options="pickerOptions">
+                </el-date-picker>
+              </el-form-item>
+              <el-form-item>
+                <el-button type="primary" @click="onSubmit">查询</el-button>
+              </el-form-item>
+            </el-form>
+          </el-main>
+          <el-footer>
+            <template>
+              <el-table
+                :data="history"
+                style="width: 100%">
+                <el-table-column
+                  prop="query"
+                  label="命令">
+                </el-table-column>
+                <el-table-column
+                  prop="count"
+                  label="结果"
+                  width="180">
+                </el-table-column>
+              </el-table>
+            </template>
+          </el-footer>
+        </el-container>
+      </el-container>
+    </div>
+  </body>
+  <script src="https://unpkg.com/vue/dist/vue.js"></script>
+  <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+  <script src="//unpkg.com/form-create/dist/form-create.elm.min.js"></script>
+  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+
+  <script>
+    var numRange3 = [...Array(4).keys()];
+    new Vue({
+      el: '#app',
+      data: function() {
+        return {
+          pickerOptions: {
+            shortcuts: [{
+              text: '前天',
+              onClick(picker) {
+                const end = new Date();
+                const start = new Date();
+                start.setTime(start.getTime() - 3600 * 1000 * 24 * 2);
+                picker.$emit('pick', [start, end]);
+              }
+            }, {
+              text: '昨天',
+              onClick(picker) {
+                const end = new Date();
+                const start = new Date();
+                start.setTime(start.getTime() - 3600 * 1000 * 24 * 1);
+                picker.$emit('pick', [start, end]);
+              }
+            }, {
+              text: '最近一周',
+              onClick(picker) {
+                const end = new Date();
+                const start = new Date();
+                start.setTime(start.getTime() - 3600 * 1000 * 24 * 7);
+                picker.$emit('pick', [start, end]);
+              }
+            }, {
+              text: '最近一个月',
+              onClick(picker) {
+                const end = new Date();
+                const start = new Date();
+                start.setTime(start.getTime() - 3600 * 1000 * 24 * 30);
+                picker.$emit('pick', [start, end]);
+              }
+            }, {
+              text: '最近三个月',
+              onClick(picker) {
+                const end = new Date();
+                const start = new Date();
+                start.setTime(start.getTime() - 3600 * 1000 * 24 * 90);
+                picker.$emit('pick', [start, end]);
+              }
+            }]
+          },
+          fields: [
+            {"label": "性别", "type": "gender", "options": {
+              "未知": "0",
+              "男": "2",
+              "女": "1",
+            }},
+            {"label": "阅读书籍本数", "type": "read_book_count", "options": numRange3},
+            {"label": "下载书籍本数", "type": "down_book_count", "options": numRange3},
+            {"label": "加入书架本数", "type": "shelf_book_count", "options": numRange3},
+          ],
+          actions: {
+            "下载": "down_day",
+            "阅读": "read_day",
+            "加入书架": "shelf_day",
+          },
+          visible: false,
+          query: "",
+          infoForm: {"rows":[{"count": 0}],"seconds":0,"numUsers":0},
+          history: [],
+          queryForm: {
+            op:'Intersect',
+            fields: [],
+            before_action: [],
+            before_date: '',
+            after_action: [],
+            after_date: '',
+            account_identify: '',
+            delivery: false
+          }
+        }
+      },
+      methods: {
+        onSubmit() {
+          var args = "Count(Intersect(\n";
+          var that = this;
+          var info = ""
+
+          this.queryForm.fields.forEach(function(el, key){
+            if (el !== ""){
+              args += "  Row("+ that.fields[key].type +"="+ el +"),\n";
+              info += " " + that.fields[key].label + "=" + el;
+            }
+          })
+          if (this.queryForm.before_action.length != 0) {
+            info += "\n前日："
+            this.queryForm.before_action.forEach(function(el){
+              args += "  Row("+ el +"=1 "
+              info += el + ","
+              if (that.queryForm.before_date.length != 0 ) {
+                  args += ", from='"+ that.queryForm.before_date[0] +"'"
+                  args += ", to='"+ that.queryForm.before_date[1] +"'"
+              }
+              args += "), \n";
+            })
+            if ( that.queryForm.before_date.length != 0 ) {
+              info += "["+ that.queryForm.before_date[0].slice(0, 10) + ", " + that.queryForm.before_date[1].slice(0, 10) + "]"
+            }
+          }
+          if (this.queryForm.after_action.length != 0) {
+            info += "\n昨日："
+            this.queryForm.after_action.forEach(function(el, key){
+              args += "  Row("+ el +"=1 "
+              info += el + ","
+              if (that.queryForm.after_date.length != 0 ) {
+                  args += ", from='"+ that.queryForm.after_date[0] +"'"
+                  args += ", to='"+ that.queryForm.after_date[1] +"'"
+              }
+              args += "),\n";
+            })
+            if ( that.queryForm.after_date.length != 0 ) {
+              info += "["+ that.queryForm.after_date[0].slice(0, 10) + ", " + that.queryForm.after_date[1].slice(0, 10) + "]"
+            }
+          }
+          args = args +"))"
+          if (args === "Count(Intersect())"){
+              args = "";
+          }
+          this.query = args
+          console.log('submit!', args);
+          axios
+          .get('/query?'+args)
+          .then(response => {
+            console.log("response", response.data);
+            this.infoForm = response.data;
+            this.infoForm.seconds = this.infoForm.seconds!=undefined?(this.infoForm.seconds).toFixed(4): 0;
+            this.history.splice(0, 0, {"query": info, "count": response.data.rows[0].count});
+          })
+        },
+        }
+    })
+  </script>
+</html>
